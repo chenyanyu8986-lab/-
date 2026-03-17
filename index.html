@@ -76,3 +76,105 @@ function gameLoop() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     // 1. 玩家移動
+    if (keys['ArrowLeft'] && player.x > 0) player.x -= 7;
+    if (keys['ArrowRight'] && player.x < canvas.width - player.width) player.x += 7;
+    
+    // 2. 射擊邏輯 (冷卻時間 250ms)
+    const now = Date.now();
+    if (keys['Space'] && now - lastFireTime > 250) {
+        entities.push({ x: player.x + 20, y: player.y, isBullet: true, speed: -10 });
+        lastFireTime = now;
+    }
+
+    // 3. 繪製玩家
+    ctx.fillStyle = '#3d405b';
+    ctx.beginPath();
+    ctx.moveTo(player.x + 20, player.y);
+    ctx.lineTo(player.x, player.y + 40);
+    ctx.lineTo(player.x + 40, player.y + 40);
+    ctx.fill();
+
+    // 4. 更新與碰撞偵測
+    for (let i = entities.length - 1; i >= 0; i--) {
+        let e = entities[i];
+        e.y += e.speed;
+
+        if (e.isBullet) {
+            ctx.fillStyle = 'black';
+            ctx.beginPath();
+            ctx.arc(e.x, e.y, 5, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // 檢查碰撞
+            for (let j = entities.length - 1; j >= 0; j--) {
+                let target = entities[j];
+                if (!target.isBullet && Math.abs(e.x - target.x) < 30 && Math.abs(e.y - target.y) < 30) {
+                    if (target.text === currentPoemData.content[currentIndex]) {
+                        score += 10;
+                        currentIndex++;
+                        gameSpeed += 0.03;
+                        createParticles(target.x, target.y, 'rgba(0,0,0,0.6)');
+                        updateTargetUI();
+                        if (currentIndex >= currentPoemData.content.length) endGame();
+                    } else {
+                        score = Math.max(0, score - 5);
+                        document.getElementById('score').innerText = score;
+                        createParticles(target.x, target.y, 'rgba(200,0,0,0.6)');
+                    }
+                    entities.splice(j, 1); // 移除文字
+                    entities.splice(i > j ? i - 1 : i, 1); // 移除子彈 (注意索引變化)
+                    break;
+                }
+            }
+        } else {
+            ctx.fillStyle = '#3d405b';
+            ctx.font = "bold 32px 'STKaiti', 'Microsoft JhengHei'";
+            ctx.textAlign = "center";
+            ctx.fillText(e.text, e.x, e.y);
+        }
+
+        if (e && (e.y > canvas.height || e.y < -50)) entities.splice(i, 1);
+    }
+
+    // 5. 粒子效果
+    for (let i = particles.length - 1; i >= 0; i--) {
+        let p = particles[i];
+        p.x += p.vx; p.y += p.vy;
+        p.life -= 0.02;
+        ctx.fillStyle = p.color.replace(/[\d.]+\)$/g, p.life + ')');
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 6 * p.life, 0, Math.PI * 2);
+        ctx.fill();
+        if (p.life <= 0) particles.splice(i, 1);
+    }
+
+    spawnWord();
+    if (gameState === 'playing') requestAnimationFrame(gameLoop);
+}
+
+function createParticles(x, y, color) {
+    for (let i = 0; i < 10; i++) {
+        particles.push({
+            x, y,
+            vx: (Math.random() - 0.5) * 6,
+            vy: (Math.random() - 0.5) * 6,
+            life: 1,
+            color
+        });
+    }
+}
+
+function endGame() {
+    gameState = 'menu';
+    setTimeout(() => {
+        alert("詩篇完成！總分：" + score);
+        const hs = localStorage.getItem('poetHighScore') || 0;
+        if (score > hs) localStorage.setItem('poetHighScore', score);
+        document.getElementById('start-screen').style.display = 'flex';
+        updateHighScore();
+    }, 100);
+}
+
+function updateHighScore() {
+    document.getElementById('high-score').innerText = localStorage.getItem('poetHighScore') || 0;
+}
