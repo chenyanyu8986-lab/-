@@ -1,3 +1,108 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>李白詩詞射擊遊戲 - 水墨篇</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #f4f1de; /* 宣紙底色 */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            overflow: hidden;
+            font-family: "Microsoft JhengHei", "STKaiti", serif;
+        }
+        #game-container {
+            position: relative;
+            box-shadow: 0 0 20px rgba(0,0,0,0.2);
+            border: 5px solid #3d405b;
+            background: #f4f1de;
+        }
+        canvas {
+            display: block;
+        }
+        .ui-layer {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            pointer-events: none;
+            color: #3d405b;
+        }
+        #score-board {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            text-align: right;
+            color: #3d405b;
+            font-weight: bold;
+        }
+        #start-screen {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(244, 241, 222, 0.95);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+        }
+        h1 { font-size: 3em; color: #3d405b; margin-bottom: 10px; }
+        p { color: #555; margin-bottom: 20px; }
+        button {
+            padding: 12px 30px;
+            font-size: 1.1em;
+            background: #3d405b;
+            color: white;
+            border: none;
+            cursor: pointer;
+            margin: 8px;
+            border-radius: 5px;
+            transition: 0.3s;
+        }
+        button:hover { background: #e07a5f; transform: scale(1.05); }
+        .instructions {
+            position: absolute;
+            bottom: 15px;
+            width: 100%;
+            text-align: center;
+            color: #888;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <div class="ui-layer">
+        <div id="current-poem" style="font-size: 1.2em;">準備開始...</div>
+        <div id="target-word" style="font-size: 2.2em; font-weight: bold; margin-top: 5px;"></div>
+    </div>
+    
+    <div id="score-board">
+        <div>分數: <span id="score">0</span></div>
+        <div style="font-size: 0.8em; color: #888;">最高紀錄: <span id="high-score">0</span></div>
+    </div>
+
+    <div id="start-screen">
+        <h1>李白詩詞射擊</h1>
+        <p>按順序射擊正確的詩句文字，墨染江山</p>
+        <button onclick="startGame(0)">靜夜思 (初級)</button>
+        <button onclick="startGame(1)">將進酒 (中級)</button>
+        <button onclick="startGame(2)">蜀道難 (高級)</button>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+    
+    <div class="instructions">鍵盤 [←][→] 移動，[空白鍵] 發射墨滴</div>
+</div>
+
+<script>
+/** 遊戲核心邏輯 **/
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 canvas.width = 600;
@@ -17,14 +122,15 @@ let currentIndex = 0;
 let currentPoemData = null;
 let entities = [];
 let particles = [];
-let player = { x: 300, y: 750, width: 40, height: 40 };
+let player = { x: 280, y: 730, width: 40, height: 40 };
 let keys = {};
 let lastSpawnTime = 0;
-let lastFireTime = 0; // 新增射擊冷卻計時
+let lastFireTime = 0;
 let gameSpeed = 1;
 
-window.addEventListener('keydown', e => keys[e.code] = true);
-window.addEventListener('keyup', e => keys[e.code] = false);
+// 監聽鍵盤
+window.addEventListener('keydown', e => { keys[e.code] = true; });
+window.addEventListener('keyup', e => { keys[e.code] = false; });
 
 function startGame(index) {
     currentPoemData = poems[index];
@@ -32,28 +138,28 @@ function startGame(index) {
     score = 0;
     entities = [];
     particles = [];
-    gameSpeed = 1 + (index * 0.5);
+    gameSpeed = 1 + (index * 0.4);
     gameState = 'playing';
     document.getElementById('start-screen').style.display = 'none';
-    document.getElementById('current-poem').innerText = "正在背誦：《" + currentPoemData.title + "》";
+    document.getElementById('current-poem').innerText = "《" + currentPoemData.title + "》";
     updateTargetUI();
     requestAnimationFrame(gameLoop);
 }
 
 function updateTargetUI() {
     const target = currentPoemData.content[currentIndex];
-    document.getElementById('target-word').innerText = target ? "下一個字：" + target : "已完成！";
+    document.getElementById('target-word').innerText = target ? "下一個字：「" + target + "」" : "完成！";
     document.getElementById('score').innerText = score;
 }
 
 function spawnWord() {
     const now = Date.now();
-    if (now - lastSpawnTime > 1200 / gameSpeed) {
-        // 提高正確字出現機率，確保遊戲流暢
-        const shouldSpawnCorrect = Math.random() > 0.5; 
+    // 根據難度決定生成速度
+    if (now - lastSpawnTime > 1100 / gameSpeed) {
+        const isCorrect = Math.random() > 0.5; // 50% 出現正確字
         let char = '';
         
-        if (shouldSpawnCorrect && currentIndex < currentPoemData.content.length) {
+        if (isCorrect && currentIndex < currentPoemData.content.length) {
             char = currentPoemData.content[currentIndex];
         } else {
             char = commonWords[Math.floor(Math.random() * commonWords.length)];
@@ -73,20 +179,22 @@ function spawnWord() {
 function gameLoop() {
     if (gameState !== 'playing') return;
 
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // 清除畫布 (米色底)
+    ctx.fillStyle = '#f4f1de';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // 1. 玩家移動
-    if (keys['ArrowLeft'] && player.x > 0) player.x -= 7;
-    if (keys['ArrowRight'] && player.x < canvas.width - player.width) player.x += 7;
+    // 1. 玩家移動邏輯
+    if (keys['ArrowLeft'] && player.x > 0) player.x -= 8;
+    if (keys['ArrowRight'] && player.x < canvas.width - player.width) player.x += 8;
     
-    // 2. 射擊邏輯 (冷卻時間 250ms)
+    // 2. 射擊邏輯 (CD 250ms)
     const now = Date.now();
     if (keys['Space'] && now - lastFireTime > 250) {
         entities.push({ x: player.x + 20, y: player.y, isBullet: true, speed: -10 });
         lastFireTime = now;
     }
 
-    // 3. 繪製玩家
+    // 3. 繪製玩家 (水墨剪影)
     ctx.fillStyle = '#3d405b';
     ctx.beginPath();
     ctx.moveTo(player.x + 20, player.y);
@@ -94,13 +202,15 @@ function gameLoop() {
     ctx.lineTo(player.x + 40, player.y + 40);
     ctx.fill();
 
-    // 4. 更新與碰撞偵測
+    // 4. 更新物體與碰撞偵測
     for (let i = entities.length - 1; i >= 0; i--) {
         let e = entities[i];
+        if (!e) continue;
         e.y += e.speed;
 
         if (e.isBullet) {
-            ctx.fillStyle = 'black';
+            // 繪製墨滴子彈
+            ctx.fillStyle = 'rgba(0,0,0,0.8)';
             ctx.beginPath();
             ctx.arc(e.x, e.y, 5, 0, Math.PI * 2);
             ctx.fill();
@@ -108,42 +218,44 @@ function gameLoop() {
             // 檢查碰撞
             for (let j = entities.length - 1; j >= 0; j--) {
                 let target = entities[j];
-                if (!target.isBullet && Math.abs(e.x - target.x) < 30 && Math.abs(e.y - target.y) < 30) {
+                if (target && !target.isBullet && Math.abs(e.x - target.x) < 35 && Math.abs(e.y - target.y) < 35) {
                     if (target.text === currentPoemData.content[currentIndex]) {
                         score += 10;
                         currentIndex++;
                         gameSpeed += 0.03;
-                        createParticles(target.x, target.y, 'rgba(0,0,0,0.6)');
+                        createParticles(target.x, target.y, 'rgba(0,0,0,0.6)'); // 黑色墨水特效
                         updateTargetUI();
                         if (currentIndex >= currentPoemData.content.length) endGame();
                     } else {
                         score = Math.max(0, score - 5);
                         document.getElementById('score').innerText = score;
-                        createParticles(target.x, target.y, 'rgba(200,0,0,0.6)');
+                        createParticles(target.x, target.y, 'rgba(200,0,0,0.6)'); // 红色錯誤特效
                     }
-                    entities.splice(j, 1); // 移除文字
-                    entities.splice(i > j ? i - 1 : i, 1); // 移除子彈 (注意索引變化)
+                    entities.splice(j, 1);
+                    entities.splice(i > j ? i - 1 : i, 1);
                     break;
                 }
             }
         } else {
+            // 繪製文字
             ctx.fillStyle = '#3d405b';
-            ctx.font = "bold 32px 'STKaiti', 'Microsoft JhengHei'";
+            ctx.font = "bold 34px 'STKaiti', 'Microsoft JhengHei', serif";
             ctx.textAlign = "center";
             ctx.fillText(e.text, e.x, e.y);
         }
 
-        if (e && (e.y > canvas.height || e.y < -50)) entities.splice(i, 1);
+        // 移除越界物件
+        if (e && (e.y > canvas.height || e.y < -60)) entities.splice(i, 1);
     }
 
-    // 5. 粒子效果
+    // 5. 處理粒子動畫
     for (let i = particles.length - 1; i >= 0; i--) {
         let p = particles[i];
         p.x += p.vx; p.y += p.vy;
         p.life -= 0.02;
         ctx.fillStyle = p.color.replace(/[\d.]+\)$/g, p.life + ')');
         ctx.beginPath();
-        ctx.arc(p.x, p.y, 6 * p.life, 0, Math.PI * 2);
+        ctx.arc(p.x, p.y, 7 * p.life, 0, Math.PI * 2);
         ctx.fill();
         if (p.life <= 0) particles.splice(i, 1);
     }
@@ -153,11 +265,11 @@ function gameLoop() {
 }
 
 function createParticles(x, y, color) {
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 12; i++) {
         particles.push({
             x, y,
-            vx: (Math.random() - 0.5) * 6,
-            vy: (Math.random() - 0.5) * 6,
+            vx: (Math.random() - 0.5) * 8,
+            vy: (Math.random() - 0.5) * 8,
             life: 1,
             color
         });
@@ -167,14 +279,22 @@ function createParticles(x, y, color) {
 function endGame() {
     gameState = 'menu';
     setTimeout(() => {
-        alert("詩篇完成！總分：" + score);
+        alert("🎉 恭喜完成《" + currentPoemData.title + "》！\n最終分數：" + score);
         const hs = localStorage.getItem('poetHighScore') || 0;
         if (score > hs) localStorage.setItem('poetHighScore', score);
         document.getElementById('start-screen').style.display = 'flex';
         updateHighScore();
-    }, 100);
+    }, 150);
 }
 
 function updateHighScore() {
-    document.getElementById('high-score').innerText = localStorage.getItem('poetHighScore') || 0;
+    const hs = localStorage.getItem('poetHighScore') || 0;
+    document.getElementById('high-score').innerText = hs;
 }
+
+// 初始化最高分顯示
+updateHighScore();
+</script>
+
+</body>
+</html>
