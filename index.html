@@ -3,39 +3,42 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>李白詩詞射擊 - 穩定修復版</title>
+    <title>李白詩詞射擊 - 究極穩定版</title>
     <style>
         body { margin: 0; background: #f4f1de; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; font-family: "STKaiti", "Microsoft JhengHei", serif; }
-        #game-container { position: relative; border: 5px solid #3d405b; background: #f4f1de; box-shadow: 0 0 25px rgba(0,0,0,0.3); }
-        canvas { display: block; cursor: none; }
-        .ui { position: absolute; top: 20px; left: 20px; color: #3d405b; pointer-events: none; z-index: 5; }
-        #target-display { font-size: 2.2em; font-weight: bold; color: #e07a5f; margin-top: 5px; text-shadow: 1px 1px 0 #fff; }
-        #score-board { position: absolute; top: 20px; right: 20px; text-align: right; color: #3d405b; font-size: 1.2em; font-weight: bold; z-index: 5; }
-        #start-screen { position: absolute; inset: 0; background: rgba(244, 241, 222, 0.95); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 100; }
-        button { padding: 15px 40px; font-size: 1.2em; background: #3d405b; color: white; border: none; cursor: pointer; margin: 10px; border-radius: 8px; transition: 0.2s; }
-        button:hover { background: #e07a5f; transform: scale(1.05); }
-        .hint { position: absolute; bottom: 15px; width: 100%; text-align: center; color: #888; font-size: 0.9em; }
+        #game-wrapper { position: relative; border: 5px solid #3d405b; background: #f4f1de; }
+        canvas { display: block; }
+        .ui-box { position: absolute; top: 20px; left: 20px; color: #3d405b; pointer-events: none; }
+        #target-display { font-size: 2.2em; font-weight: bold; color: #e07a5f; margin-top: 5px; }
+        #score-display { position: absolute; top: 20px; right: 20px; color: #3d405b; font-weight: bold; font-size: 1.2em; }
+        #overlay { position: absolute; inset: 0; background: rgba(244, 241, 222, 0.9); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 100; }
+        button { padding: 15px 45px; font-size: 1.2em; background: #3d405b; color: white; border: none; cursor: pointer; margin: 10px; border-radius: 8px; transition: 0.2s; }
+        button:hover { background: #e07a5f; }
+        #msg-popup { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px 40px; border: 3px solid #3d405b; display: none; text-align: center; z-index: 200; }
     </style>
 </head>
 <body>
 
-<div id="game-container">
-    <div class="ui">
-        <div id="poem-title" style="font-size: 1.2em; opacity: 0.8;">請準備...</div>
-        <div id="target-display">選取關卡</div>
+<div id="game-wrapper">
+    <div class="ui-box">
+        <div id="poem-info">請選擇關卡</div>
+        <div id="target-display">---</div>
     </div>
-    <div id="score-board">得分: <span id="score">0</span></div>
+    <div id="score-display">得分: 0</div>
 
-    <div id="start-screen">
-        <h1 style="font-size: 3.5em; color: #3d405b; margin-bottom: 5px;">李白詩詞射擊</h1>
-        <p style="margin-bottom: 30px;">按順序擊落詩句文字，莫使金樽空對月</p>
-        <button onclick="initGame(0)">靜夜思</button>
-        <button onclick="initGame(1)">將進酒</button>
-        <button onclick="initGame(2)">蜀道難</button>
+    <div id="overlay">
+        <h1 style="font-size: 3em; color: #3d405b;">李白詩詞射擊</h1>
+        <button onclick="bootGame(0)">靜夜思</button>
+        <button onclick="bootGame(1)">將進酒</button>
+        <button onclick="bootGame(2)">蜀道難</button>
+    </div>
+
+    <div id="msg-popup">
+        <h2 id="msg-text"></h2>
+        <button onclick="closeMsg()">回到選單</button>
     </div>
 
     <canvas id="gameCanvas"></canvas>
-    <div class="hint">使用 [←][→] 移動，[空白鍵] 發射</div>
 </div>
 
 <script>
@@ -49,166 +52,150 @@ const poems = [
     { title: "將進酒", content: "君不見黃河之水天上來奔流到海不復回君不見高堂明鏡悲白髮朝如青絲暮成雪" },
     { title: "蜀道難", content: "噫吁嚱危乎高哉蜀道之難難於上青天蠶叢及魚鳧開國何茫然爾來四萬八千歲不與秦塞通人煙" }
 ];
+const commonWords = "的一是在不了有和人這中大來上個國我到說們為子社多時樣後自下以生可能而面分於主行過家開現前出民日發正道成那西對也此法之實重物度後政";
 
-const commonWords = "的一是在不了有和人這中大來上個國我到說們為子和社多時樣後自下以生可能而面分於主行過家開現前出民日發正道成前那西對也此法之實重物度法後政也";
-
-// 遊戲全域狀態
-let state = {
-    running: false,
+let game = {
+    active: false,
     score: 0,
-    index: 0,
-    poem: null,
+    charIndex: 0,
+    data: null,
     words: [],
     bullets: [],
     particles: [],
-    player: { x: 280, y: 720, w: 40, h: 40 },
+    playerX: 280,
     keys: {},
     lastSpawn: 0,
-    lastFire: 0,
-    speed: 1
+    lastFire: 0
 };
 
-// 鍵盤事件監聽 (放在外面確保只註冊一次)
-window.addEventListener('keydown', e => { state.keys[e.code] = true; });
-window.addEventListener('keyup', e => { state.keys[e.code] = false; });
+window.addEventListener('keydown', e => { e.preventDefault(); game.keys[e.code] = true; });
+window.addEventListener('keyup', e => game.keys[e.code] = false);
 
-function initGame(idx) {
-    state.poem = poems[idx];
-    state.index = 0;
-    state.score = 0;
-    state.words = [];
-    state.bullets = [];
-    state.particles = [];
-    state.speed = 1 + (idx * 0.3);
-    state.running = true;
-    
-    document.getElementById('start-screen').style.display = 'none';
-    document.getElementById('poem-title').innerText = "正在背誦：《" + state.poem.title + "》";
-    refreshUI();
-    
-    // 確保只啟動一個 Loop
-    cancelAnimationFrame(window.gameAnim);
-    window.gameAnim = requestAnimationFrame(mainLoop);
+function bootGame(idx) {
+    game.data = poems[idx];
+    game.charIndex = 0;
+    game.score = 0;
+    game.words = [];
+    game.bullets = [];
+    game.particles = [];
+    game.active = true;
+    document.getElementById('overlay').style.display = 'none';
+    document.getElementById('msg-popup').style.display = 'none';
+    document.getElementById('poem-info').innerText = "《" + game.data.title + "》";
+    refresh();
+    requestAnimationFrame(loop);
 }
 
-function refreshUI() {
-    const nextChar = state.poem.content[state.index];
-    document.getElementById('target-display').innerText = nextChar ? "下一字：「" + nextChar + "」" : "已完成！";
-    document.getElementById('score').innerText = state.score;
+function refresh() {
+    const next = game.data.content[game.charIndex];
+    document.getElementById('target-display').innerText = next ? "下一字：「" + next + "」" : "完成！";
+    document.getElementById('score-display').innerText = "得分: " + game.score;
 }
 
-function createBurst(x, y, color) {
-    for(let i=0; i<12; i++) {
-        state.particles.push({
-            x, y, 
-            vx: (Math.random()-0.5)*12, 
-            vy: (Math.random()-0.5)*12, 
-            life: 1, 
-            color 
-        });
-    }
-}
+function loop(t) {
+    if (!game.active) return;
 
-function mainLoop(timestamp) {
-    if (!state.running) return;
-
-    // 1. 物理更新
-    if (state.keys['ArrowLeft'] && state.player.x > 0) state.player.x -= 8;
-    if (state.keys['ArrowRight'] && state.player.x < canvas.width - state.player.w) state.player.x += 8;
-    
-    // 射擊控制
-    if (state.keys['Space'] && timestamp - state.lastFire > 200) {
-        state.bullets.push({ x: state.player.x + 20, y: state.player.y, r: 5 });
-        state.lastFire = timestamp;
+    // 1. 移動
+    if (game.keys['ArrowLeft'] && game.playerX > 0) game.playerX -= 8;
+    if (game.keys['ArrowRight'] && game.playerX < 560) game.playerX += 8;
+    if (game.keys['Space'] && t - game.lastFire > 220) {
+        game.bullets.push({ x: game.playerX + 20, y: 720 });
+        game.lastFire = t;
     }
 
-    // 2. 渲染背景
+    // 2. 繪製背景
     ctx.fillStyle = '#f4f1de';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillRect(0, 0, 600, 800);
 
-    // 3. 生成文字
-    if (timestamp - state.lastSpawn > 1000 / state.speed) {
-        const isTarget = Math.random() > 0.4 && state.index < state.poem.content.length;
-        state.words.push({
+    // 3. 生成文字（每 1.2 秒）
+    if (t - game.lastSpawn > 1200) {
+        const isTarget = Math.random() > 0.4 && game.charIndex < game.data.content.length;
+        game.words.push({
             x: Math.random() * 500 + 50,
             y: -50,
-            text: isTarget ? state.poem.content[state.index] : commonWords[Math.floor(Math.random()*commonWords.length)],
-            speed: (2 + Math.random() * 1.5) * state.speed
+            text: isTarget
+                ? game.data.content[game.charIndex]
+                : commonWords[Math.floor(Math.random() * commonWords.length)],
+            vy: 2.5 + Math.random() * 2
         });
-        state.lastSpawn = timestamp;
+        game.lastSpawn = t;
     }
 
-    // 4. 更新文字與碰撞
-    state.words.forEach((w, wIdx) => {
-        w.y += w.speed;
+    // 4. 移動並繪製子彈
+    game.bullets = game.bullets.filter(b => {
+        b.y -= 12;
+        ctx.fillStyle = '#e07a5f';
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, 5, 0, Math.PI * 2);
+        ctx.fill();
+        return b.y > -10;
+    });
+
+    // ★ 修正核心：用 Set 記錄本幀要刪除的子彈索引，避免邊迴圈邊 splice 造成崩潰
+    let pendingFinish = false;
+    const bulletsToRemove = new Set();
+
+    game.words = game.words.filter(w => {
+        w.y += w.vy;
         ctx.fillStyle = '#3d405b';
         ctx.font = "bold 36px 'STKaiti', serif";
         ctx.textAlign = "center";
         ctx.fillText(w.text, w.x, w.y);
 
-        // 與子彈碰撞
-        state.bullets.forEach((b, bIdx) => {
-            const dx = w.x - b.x;
-            const dy = (w.y - 15) - b.y; // 調整文字視覺中心
-            if (Math.sqrt(dx*dx + dy*dy) < 35) {
-                if (w.text === state.poem.content[state.index]) {
-                    state.score += 10;
-                    state.index++;
-                    state.speed += 0.02;
-                    createBurst(w.x, w.y, 'rgba(0,0,0,0.6)');
-                    refreshUI();
-                    // 檢查勝利
-                    if (state.index >= state.poem.content.length) {
-                        state.running = false;
-                        setTimeout(() => { 
-                            alert("大才子！《" + state.poem.title + "》完成，得分：" + state.score); 
-                            location.reload(); 
-                        }, 200);
+        let hit = false;
+        for (let bi = 0; bi < game.bullets.length; bi++) {
+            if (bulletsToRemove.has(bi)) continue; // 已被消耗的子彈跳過
+            const b = game.bullets[bi];
+            if (Math.abs(w.x - b.x) < 30 && Math.abs(w.y - 15 - b.y) < 30) {
+                hit = true;
+                bulletsToRemove.add(bi); // 標記子彈待刪
+                if (w.text === game.data.content[game.charIndex]) {
+                    game.score += 10;
+                    game.charIndex++;
+                    refresh();
+                    // ★ 修正：不在此直接呼叫 finish()，改用 flag 延遲到 frame 結束後執行
+                    if (game.charIndex >= game.data.content.length) {
+                        pendingFinish = true;
                     }
                 } else {
-                    state.score = Math.max(0, state.score - 5);
-                    createBurst(w.x, w.y, 'rgba(224,122,95,0.7)');
-                    refreshUI();
+                    game.score = Math.max(0, game.score - 5);
+                    refresh();
                 }
-                w.toRemove = true;
-                b.toRemove = true;
+                break; // 一顆子彈只能打一個字
             }
-        });
+        }
+        return !hit && w.y < 850;
     });
 
-    // 5. 更新子彈
-    state.bullets.forEach(b => {
-        b.y -= 12;
-        ctx.fillStyle = '#333';
-        ctx.beginPath();
-        ctx.arc(b.x, b.y, b.r, 0, Math.PI*2);
-        ctx.fill();
-        if (b.y < -20) b.toRemove = true;
-    });
+    // ★ 修正：filter 結束後，統一移除已消耗的子彈
+    game.bullets = game.bullets.filter((_, i) => !bulletsToRemove.has(i));
 
-    // 清理物件 (使用 filter 避免索引崩潰)
-    state.words = state.words.filter(w => !w.toRemove && w.y < 900);
-    state.bullets = state.bullets.filter(b => !b.toRemove);
-
-    // 6. 繪製玩家 (俠客剪影)
+    // 5. 繪製玩家飛船
     ctx.fillStyle = '#3d405b';
     ctx.beginPath();
-    ctx.moveTo(state.player.x + 20, state.player.y);
-    ctx.lineTo(state.player.x, state.player.y + 40);
-    ctx.lineTo(state.player.x + 40, state.player.y + 40);
+    ctx.moveTo(game.playerX + 20, 720);
+    ctx.lineTo(game.playerX, 760);
+    ctx.lineTo(game.playerX + 40, 760);
     ctx.fill();
 
-    // 7. 粒子系統
-    state.particles.forEach((p, i) => {
-        p.x += p.vx; p.y += p.vy; p.life -= 0.03;
-        ctx.fillStyle = p.color.replace(/[\d.]+\)$/, p.life + ')');
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, 5 * p.life, 0, Math.PI*2);
-        ctx.fill();
-    });
-    state.particles = state.particles.filter(p => p.life > 0);
+    // ★ 修正：確保所有繪製與陣列操作完成後，才執行 finish()
+    if (pendingFinish) {
+        finish();
+        return; // 結束本幀，不再呼叫 requestAnimationFrame
+    }
 
-    if (state.running) window.gameAnim = requestAnimationFrame(mainLoop);
+    requestAnimationFrame(loop);
+}
+
+function finish() {
+    game.active = false;
+    document.getElementById('msg-text').innerText = "詩篇完成！總分：" + game.score;
+    document.getElementById('msg-popup').style.display = 'block';
+}
+
+function closeMsg() {
+    document.getElementById('msg-popup').style.display = 'none';
+    document.getElementById('overlay').style.display = 'flex';
 }
 </script>
 </body>
