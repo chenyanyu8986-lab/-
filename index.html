@@ -61,7 +61,6 @@ let game = {
     data: null,
     words: [],
     bullets: [],
-    particles: [],
     playerX: 280,
     keys: {},
     lastSpawn: 0,
@@ -77,7 +76,6 @@ function bootGame(idx) {
     game.score = 0;
     game.words = [];
     game.bullets = [];
-    game.particles = [];
     game.active = true;
     document.getElementById('overlay').style.display = 'none';
     document.getElementById('msg-popup').style.display = 'none';
@@ -95,7 +93,7 @@ function refresh() {
 function loop(t) {
     if (!game.active) return;
 
-    // 1. 移動
+    // 1. 玩家移動 & 發射
     if (game.keys['ArrowLeft'] && game.playerX > 0) game.playerX -= 8;
     if (game.keys['ArrowRight'] && game.playerX < 560) game.playerX += 8;
     if (game.keys['Space'] && t - game.lastFire > 220) {
@@ -103,7 +101,7 @@ function loop(t) {
         game.lastFire = t;
     }
 
-    // 2. 繪製背景
+    // 2. 清除畫面
     ctx.fillStyle = '#f4f1de';
     ctx.fillRect(0, 0, 600, 800);
 
@@ -121,56 +119,65 @@ function loop(t) {
         game.lastSpawn = t;
     }
 
-    // 4. 移動並繪製子彈
-    game.bullets = game.bullets.filter(b => {
-        b.y -= 12;
-        ctx.fillStyle = '#e07a5f';
-        ctx.beginPath();
-        ctx.arc(b.x, b.y, 5, 0, Math.PI * 2);
-        ctx.fill();
-        return b.y > -10;
-    });
+    // ★ 核心修正：先做碰撞偵測，產出「字被打中」與「子彈消耗」兩份結果
+    //    完全不在 filter/forEach 內部修改任何陣列或呼叫 finish()
 
-    // ★ 修正核心：用 Set 記錄本幀要刪除的子彈索引，避免邊迴圈邊 splice 造成崩潰
+    // 步驟 A：更新所有子彈位置
+    for (const b of game.bullets) { b.y -= 12; }
+
+    // 步驟 B：碰撞偵測 — 純粹收集結果，不動任何陣列
+    const hitWordIndices   = new Set(); // 被打中的文字索引
+    const hitBulletIndices = new Set(); // 被消耗的子彈索引
     let pendingFinish = false;
-    const bulletsToRemove = new Set();
 
-    game.words = game.words.filter(w => {
-        w.y += w.vy;
-        ctx.fillStyle = '#3d405b';
-        ctx.font = "bold 36px 'STKaiti', serif";
-        ctx.textAlign = "center";
-        ctx.fillText(w.text, w.x, w.y);
-
-        let hit = false;
+    for (let wi = 0; wi < game.words.length; wi++) {
+        const w = game.words[wi];
         for (let bi = 0; bi < game.bullets.length; bi++) {
-            if (bulletsToRemove.has(bi)) continue; // 已被消耗的子彈跳過
+            if (hitBulletIndices.has(bi)) continue; // 子彈已被消耗
             const b = game.bullets[bi];
             if (Math.abs(w.x - b.x) < 30 && Math.abs(w.y - 15 - b.y) < 30) {
-                hit = true;
-                bulletsToRemove.add(bi); // 標記子彈待刪
+                hitWordIndices.add(wi);
+                hitBulletIndices.add(bi);
+                // 判斷是否打中目標字
                 if (w.text === game.data.content[game.charIndex]) {
                     game.score += 10;
                     game.charIndex++;
-                    refresh();
-                    // ★ 修正：不在此直接呼叫 finish()，改用 flag 延遲到 frame 結束後執行
                     if (game.charIndex >= game.data.content.length) {
                         pendingFinish = true;
                     }
                 } else {
                     game.score = Math.max(0, game.score - 5);
-                    refresh();
                 }
-                break; // 一顆子彈只能打一個字
+                refresh();
+                break; // 一個字只能被一顆子彈打中
             }
         }
-        return !hit && w.y < 850;
-    });
+    }
 
-    // ★ 修正：filter 結束後，統一移除已消耗的子彈
-    game.bullets = game.bullets.filter((_, i) => !bulletsToRemove.has(i));
+    // 步驟 C：依結果過濾陣列（碰撞偵測已完成，安全過濾）
+    game.words   = game.words.filter((_, i) => !hitWordIndices.has(i) && game.words[i].y < 850);
+    game.bullets = game.bullets.filter((b, i) => !hitBulletIndices.has(i) && b.y > -10);
 
-    // 5. 繪製玩家飛船
+    // 步驟 D：移動剩餘文字
+    for (const w of game.words) { w.y += w.vy; }
+
+    // 4. 繪製文字
+    ctx.font = "bold 36px 'STKaiti', serif";
+    ctx.textAlign = "center";
+    for (const w of game.words) {
+        ctx.fillStyle = (w.text === game.data.content[game.charIndex]) ? '#e07a5f' : '#3d405b';
+        ctx.fillText(w.text, w.x, w.y);
+    }
+
+    // 5. 繪製子彈
+    ctx.fillStyle = '#e07a5f';
+    for (const b of game.bullets) {
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, 5, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    // 6. 繪製玩家飛船
     ctx.fillStyle = '#3d405b';
     ctx.beginPath();
     ctx.moveTo(game.playerX + 20, 720);
@@ -178,10 +185,10 @@ function loop(t) {
     ctx.lineTo(game.playerX + 40, 760);
     ctx.fill();
 
-    // ★ 修正：確保所有繪製與陣列操作完成後，才執行 finish()
+    // ★ 確保所有繪製完成後，才結束遊戲
     if (pendingFinish) {
         finish();
-        return; // 結束本幀，不再呼叫 requestAnimationFrame
+        return;
     }
 
     requestAnimationFrame(loop);
