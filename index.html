@@ -3,206 +3,662 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>李白詩詞射擊 - 究極穩定版</title>
+    <title>李白詩詞射擊</title>
     <style>
-        body { margin: 0; background: #f4f1de; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; font-family: "STKaiti", "Microsoft JhengHei", serif; }
-        #game-wrapper { position: relative; border: 5px solid #3d405b; background: #f4f1de; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background: #1a1a2e;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+            font-family: "STKaiti", "Microsoft JhengHei", serif;
+        }
+        #game-wrapper {
+            position: relative;
+            border: 3px solid #c9a84c;
+            box-shadow: 0 0 40px rgba(201,168,76,0.3), inset 0 0 60px rgba(0,0,0,0.5);
+        }
         canvas { display: block; }
-        .ui-box { position: absolute; top: 20px; left: 20px; color: #3d405b; pointer-events: none; }
-        #target-display { font-size: 2.2em; font-weight: bold; color: #e07a5f; margin-top: 5px; }
-        #score-display { position: absolute; top: 20px; right: 20px; color: #3d405b; font-weight: bold; font-size: 1.2em; }
-        #overlay { position: absolute; inset: 0; background: rgba(244, 241, 222, 0.9); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 100; }
-        button { padding: 15px 45px; font-size: 1.2em; background: #3d405b; color: white; border: none; cursor: pointer; margin: 10px; border-radius: 8px; transition: 0.2s; }
-        button:hover { background: #e07a5f; }
-        #msg-popup { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px 40px; border: 3px solid #3d405b; display: none; text-align: center; z-index: 200; }
+
+        /* ── 選單 overlay ── */
+        #overlay {
+            position: absolute; inset: 0;
+            background: radial-gradient(ellipse at center, rgba(20,15,40,0.97) 60%, rgba(10,8,20,0.99));
+            display: flex; flex-direction: column;
+            justify-content: center; align-items: center;
+            z-index: 100;
+        }
+        #overlay h1 {
+            font-size: 2.8em; color: #c9a84c;
+            text-shadow: 0 0 20px rgba(201,168,76,0.6);
+            margin-bottom: 8px; letter-spacing: 6px;
+        }
+        #overlay .subtitle {
+            color: #8899aa; font-size: 1em; margin-bottom: 40px; letter-spacing: 3px;
+        }
+        .menu-btn {
+            padding: 14px 50px; font-size: 1.1em;
+            background: transparent;
+            color: #c9a84c;
+            border: 2px solid #c9a84c;
+            cursor: pointer; margin: 8px;
+            border-radius: 4px;
+            letter-spacing: 4px;
+            transition: all 0.25s;
+            font-family: inherit;
+        }
+        .menu-btn:hover {
+            background: #c9a84c; color: #1a1a2e;
+            box-shadow: 0 0 20px rgba(201,168,76,0.5);
+        }
+
+        /* ── HUD ── */
+        #hud {
+            position: absolute; top: 0; left: 0; right: 0;
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 12px 20px;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.7), transparent);
+            pointer-events: none;
+            color: #c9a84c;
+        }
+        #poem-info { font-size: 0.9em; opacity: 0.7; }
+        #target-display { font-size: 1.8em; font-weight: bold; color: #ff9966; text-shadow: 0 0 12px rgba(255,153,102,0.8); }
+        #score-display { font-size: 1em; }
+        #lives-display { font-size: 1.3em; letter-spacing: 4px; }
+
+        /* ── 結果彈窗 ── */
+        #msg-popup {
+            position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(10,8,25,0.97);
+            border: 2px solid #c9a84c;
+            padding: 36px 50px;
+            display: none; text-align: center; z-index: 200;
+            box-shadow: 0 0 40px rgba(201,168,76,0.3);
+            max-height: 92%;
+            overflow-y: auto;
+            width: 88%;
+        }
+        #msg-title { font-size: 2em; color: #c9a84c; margin-bottom: 10px; }
+        #msg-text  { font-size: 1.1em; color: #aabbcc; margin-bottom: 25px; }
+        #msg-popup button {
+            padding: 12px 40px; font-size: 1em;
+            background: transparent; color: #c9a84c;
+            border: 2px solid #c9a84c; cursor: pointer;
+            border-radius: 4px; font-family: inherit;
+            letter-spacing: 3px; transition: all 0.2s;
+        }
+        #msg-popup button:hover { background: #c9a84c; color: #1a1a2e; }
+
+        /* ── 詩詞複習區 ── */
+        #poem-review {
+            margin: 18px 0 24px;
+            padding: 20px 28px;
+            border: 1px solid rgba(201,168,76,0.35);
+            background: rgba(201,168,76,0.06);
+            border-radius: 6px;
+            text-align: center;
+        }
+        #review-author {
+            font-size: 0.85em; color: #8899aa;
+            letter-spacing: 3px; margin-bottom: 14px;
+        }
+        #review-lines {
+            font-size: 1.25em; color: #e8d89a;
+            line-height: 2.2em; letter-spacing: 4px;
+            font-family: "STKaiti","Microsoft JhengHei",serif;
+        }
+        #review-lines span.char-highlight {
+            color: #ff9966;
+            text-shadow: 0 0 8px rgba(255,153,102,0.7);
+        }
+        #review-note {
+            margin-top: 14px; font-size: 0.82em;
+            color: #7788aa; line-height: 1.7em;
+            letter-spacing: 1px; font-style: italic;
+        }
+
+        /* ── 難度閃爍提示 ── */
+        #level-flash {
+            position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            color: #ff6644; font-size: 2.5em; font-weight: bold;
+            text-shadow: 0 0 20px #ff4422;
+            pointer-events: none; opacity: 0;
+            transition: opacity 0.3s;
+            z-index: 150; letter-spacing: 4px;
+        }
     </style>
 </head>
 <body>
-
 <div id="game-wrapper">
-    <div class="ui-box">
-        <div id="poem-info">請選擇關卡</div>
-        <div id="target-display">---</div>
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="hud" style="display:none">
+        <div>
+            <div id="poem-info">---</div>
+            <div id="target-display">---</div>
+        </div>
+        <div id="lives-display">❤❤❤</div>
+        <div id="score-display">得分: 0</div>
     </div>
-    <div id="score-display">得分: 0</div>
 
     <div id="overlay">
-        <h1 style="font-size: 3em; color: #3d405b;">李白詩詞射擊</h1>
-        <button onclick="bootGame(0)">靜夜思</button>
-        <button onclick="bootGame(1)">將進酒</button>
-        <button onclick="bootGame(2)">蜀道難</button>
+        <div style="font-size:4em; margin-bottom:4px;">⚔</div>
+        <h1>李白詩詞射擊</h1>
+        <div class="subtitle">— 以詩為劍，橫掃千軍 —</div>
+        <button class="menu-btn" onclick="bootGame(0)">其一　靜夜思</button>
+        <button class="menu-btn" onclick="bootGame(1)">其二　將進酒</button>
+        <button class="menu-btn" onclick="bootGame(2)">其三　蜀道難</button>
     </div>
 
     <div id="msg-popup">
-        <h2 id="msg-text"></h2>
-        <button onclick="closeMsg()">回到選單</button>
+        <div id="msg-title"></div>
+        <div id="msg-text"></div>
+        <div id="poem-review">
+            <div id="review-author"></div>
+            <div id="review-lines"></div>
+            <div id="review-note"></div>
+        </div>
+        <button onclick="closeMsg()">返回選單</button>
     </div>
 
-    <canvas id="gameCanvas"></canvas>
+    <div id="level-flash"></div>
 </div>
 
 <script>
-const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d');
-canvas.width = 600;
-canvas.height = 800;
+const canvas  = document.getElementById('gameCanvas');
+const ctx     = canvas.getContext('2d');
+canvas.width  = 620;
+canvas.height = 820;
 
+/* ───── 詩詞資料 ───── */
 const poems = [
-    { title: "靜夜思", content: "床前明月光疑是地上霜舉頭望明月低頭思故鄉" },
-    { title: "將進酒", content: "君不見黃河之水天上來奔流到海不復回君不見高堂明鏡悲白髮朝如青絲暮成雪" },
-    { title: "蜀道難", content: "噫吁嚱危乎高哉蜀道之難難於上青天蠶叢及魚鳧開國何茫然爾來四萬八千歲不與秦塞通人煙" }
+    {
+        title: "靜夜思",
+        content: "床前明月光疑是地上霜舉頭望明月低頭思故鄉",
+        author: "唐・李白",
+        lines: ["床前明月光，", "疑是地上霜。", "舉頭望明月，", "低頭思故鄉。"],
+        note: "這首詩以月寄情，道盡遊子思鄉之苦，是唐詩中傳誦最廣的名篇之一。"
+    },
+    {
+        title: "將進酒",
+        content: "君不見黃河之水天上來奔流到海不復回君不見高堂明鏡悲白髮朝如青絲暮成雪",
+        author: "唐・李白",
+        lines: ["君不見黃河之水天上來，", "奔流到海不復回。", "君不見高堂明鏡悲白髮，", "朝如青絲暮成雪。"],
+        note: "此詩以黃河奔流與白髮易老起興，氣勢磅礴，抒發詩人及時行樂、不拘世俗的豪情壯志。"
+    },
+    {
+        title: "蜀道難",
+        content: "噫吁嚱危乎高哉蜀道之難難於上青天蠶叢及魚鳧開國何茫然爾來四萬八千歲不與秦塞通人煙",
+        author: "唐・李白",
+        lines: ["噫吁嚱！危乎高哉！", "蜀道之難，難於上青天！", "蠶叢及魚鳧，開國何茫然！", "爾來四萬八千歲，", "不與秦塞通人煙。"],
+        note: "李白以誇張雄奇的筆法描繪蜀道險峻，借山川之難抒胸中鬱結，被賀知章譽為「謫仙人」之作。"
+    }
 ];
 const commonWords = "的一是在不了有和人這中大來上個國我到說們為子社多時樣後自下以生可能而面分於主行過家開現前出民日發正道成那西對也此法之實重物度後政";
 
+/* ───── 難度分級 ───── */
+const LEVELS = [
+    { label: "初境", spawnMs: 1400, baseVy: 2.0, vyRange: 1.5 },
+    { label: "二境", spawnMs: 1100, baseVy: 2.5, vyRange: 2.0 },
+    { label: "三境", spawnMs:  850, baseVy: 3.2, vyRange: 2.5 },
+    { label: "天境", spawnMs:  600, baseVy: 4.0, vyRange: 3.0 }
+];
+const LEVEL_THRESHOLDS = [0, 5, 12, 22];
+
+/* ───── 遊戲狀態 ───── */
 let game = {
     active: false,
     score: 0,
+    lives: 3,
     charIndex: 0,
     data: null,
     words: [],
     bullets: [],
+    particles: [],
+    stars: [],
+    inkTrails: [],
+    scorePopups: [],
+    screenFlash: 0,
     playerX: 280,
     keys: {},
     lastSpawn: 0,
-    lastFire: 0
+    lastFire: 0,
+    fireCooldown: 220,
+    hitCount: 0,
+    levelIdx: 0,
+    glowPhase: 0
 };
 
 window.addEventListener('keydown', e => { e.preventDefault(); game.keys[e.code] = true; });
-window.addEventListener('keyup', e => game.keys[e.code] = false);
+window.addEventListener('keyup',   e => { game.keys[e.code] = false; });
 
+/* ───── 初始化星空 ───── */
+function initStars() {
+    game.stars = [];
+    for (let i = 0; i < 80; i++) {
+        game.stars.push({
+            x: Math.random() * canvas.width,
+            y: Math.random() * canvas.height,
+            r: Math.random() * 1.5 + 0.3,
+            alpha: Math.random() * 0.6 + 0.2,
+            twinkle: Math.random() * Math.PI * 2
+        });
+    }
+}
+
+/* ───── 啟動遊戲 ───── */
 function bootGame(idx) {
-    game.data = poems[idx];
-    game.charIndex = 0;
-    game.score = 0;
-    game.words = [];
-    game.bullets = [];
-    game.active = true;
-    document.getElementById('overlay').style.display = 'none';
+    game.data         = poems[idx];
+    game.charIndex    = 0;
+    game.score        = 0;
+    game.lives        = 3;
+    game.hitCount     = 0;
+    game.levelIdx     = 0;
+    game.words        = [];
+    game.bullets      = [];
+    game.particles    = [];
+    game.inkTrails    = [];
+    game.scorePopups  = [];
+    game.screenFlash  = 0;
+    game.active       = true;
+    game.lastSpawn    = 0;
+    game.lastFire     = 0;
+    game.fireCooldown = 220;
+    game.playerX      = 280;
+    initStars();
+    document.getElementById('overlay').style.display   = 'none';
     document.getElementById('msg-popup').style.display = 'none';
-    document.getElementById('poem-info').innerText = "《" + game.data.title + "》";
-    refresh();
+    document.getElementById('hud').style.display       = 'flex';
+    refreshHUD();
     requestAnimationFrame(loop);
 }
 
-function refresh() {
+/* ───── HUD 更新 ───── */
+function refreshHUD() {
     const next = game.data.content[game.charIndex];
-    document.getElementById('target-display').innerText = next ? "下一字：「" + next + "」" : "完成！";
-    document.getElementById('score-display').innerText = "得分: " + game.score;
+    document.getElementById('poem-info').innerText     = "《" + game.data.title + "》　" + LEVELS[game.levelIdx].label;
+    document.getElementById('target-display').innerText = next ? "► 「" + next + "」" : "完成！";
+    document.getElementById('score-display').innerText  = "得分 " + game.score;
+    document.getElementById('lives-display').innerText  =
+        "❤".repeat(game.lives) + "♡".repeat(Math.max(0, 3 - game.lives));
 }
 
+/* ───── 難度升級提示 ───── */
+function showLevelFlash(label) {
+    const el = document.getElementById('level-flash');
+    el.innerText = "⬆ " + label + " ⬆";
+    el.style.opacity = '1';
+    setTimeout(() => { el.style.opacity = '0'; }, 1200);
+}
+
+/* ───── 粒子爆炸（水墨風） ───── */
+function spawnParticles(x, y, isCorrect) {
+    const count  = isCorrect ? 18 : 8;
+    const colors = isCorrect
+        ? ['#c9a84c','#ffdd88','#ffffff','#ff9966']
+        : ['#445566','#334455','#aabbcc'];
+    for (let i = 0; i < count; i++) {
+        const angle = (Math.PI * 2 / count) * i + Math.random() * 0.4;
+        const speed = isCorrect ? (Math.random() * 4 + 2) : (Math.random() * 2 + 1);
+        game.particles.push({
+            x, y,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed - (isCorrect ? 1 : 0),
+            life: 1.0,
+            decay: isCorrect ? 0.03 : 0.05,
+            r: Math.random() * (isCorrect ? 5 : 3) + 2,
+            color: colors[Math.floor(Math.random() * colors.length)],
+            ink: Math.random() > 0.5
+        });
+    }
+    if (isCorrect) {
+        game.inkTrails.push({ x, y, alpha: 1.0, size: 40 });
+    }
+}
+
+/* ───── 主迴圈 ───── */
 function loop(t) {
     if (!game.active) return;
+    game.glowPhase += 0.06;
 
-    // 1. 玩家移動 & 發射
-    if (game.keys['ArrowLeft'] && game.playerX > 0) game.playerX -= 8;
-    if (game.keys['ArrowRight'] && game.playerX < 560) game.playerX += 8;
-    if (game.keys['Space'] && t - game.lastFire > 220) {
-        game.bullets.push({ x: game.playerX + 20, y: 720 });
+    const lv = LEVELS[game.levelIdx];
+
+    /* 1. 輸入 */
+    if (game.keys['ArrowLeft']  && game.playerX > 0)   game.playerX -= 8;
+    if (game.keys['ArrowRight'] && game.playerX < 580)  game.playerX += 8;
+    if (game.keys['Space'] && t - game.lastFire > game.fireCooldown) {
+        game.bullets.push({ x: game.playerX + 21, y: 730 });
         game.lastFire = t;
+        game.fireCooldown = 220;
     }
 
-    // 2. 清除畫面
-    ctx.fillStyle = '#f4f1de';
-    ctx.fillRect(0, 0, 600, 800);
+    /* 2. 背景 */
+    drawBackground();
 
-    // 3. 生成文字（每 1.2 秒）
-    if (t - game.lastSpawn > 1200) {
-        const isTarget = Math.random() > 0.4 && game.charIndex < game.data.content.length;
-        game.words.push({
-            x: Math.random() * 500 + 50,
-            y: -50,
-            text: isTarget
-                ? game.data.content[game.charIndex]
-                : commonWords[Math.floor(Math.random() * commonWords.length)],
-            vy: 2.5 + Math.random() * 2
-        });
+    /* 2b. 紅閃懲罰效果 */
+    if (game.screenFlash > 0) {
+        ctx.save();
+        ctx.fillStyle = `rgba(200,30,30,${game.screenFlash})`;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.restore();
+        game.screenFlash = Math.max(0, game.screenFlash - 0.03);
+    }
+
+    /* 3. 生成文字 */
+    if (!game.lastSpawn || t - game.lastSpawn > lv.spawnMs) {
+        spawnWord(lv);
         game.lastSpawn = t;
     }
 
-    // ★ 核心修正：先做碰撞偵測，產出「字被打中」與「子彈消耗」兩份結果
-    //    完全不在 filter/forEach 內部修改任何陣列或呼叫 finish()
+    /* 4. 更新子彈位置 */
+    for (const b of game.bullets) { b.y -= 14; }
 
-    // 步驟 A：更新所有子彈位置
-    for (const b of game.bullets) { b.y -= 12; }
-
-    // 步驟 B：碰撞偵測 — 純粹收集結果，不動任何陣列
-    const hitWordIndices   = new Set(); // 被打中的文字索引
-    const hitBulletIndices = new Set(); // 被消耗的子彈索引
-    let pendingFinish = false;
+    /* 5. 碰撞偵測（純收集，不改陣列） */
+    const hitWords   = new Set();
+    const hitBullets = new Set();
+    let pendingFinish   = false;
+    let pendingGameOver = false;
 
     for (let wi = 0; wi < game.words.length; wi++) {
         const w = game.words[wi];
         for (let bi = 0; bi < game.bullets.length; bi++) {
-            if (hitBulletIndices.has(bi)) continue; // 子彈已被消耗
+            if (hitBullets.has(bi)) continue;
             const b = game.bullets[bi];
-            if (Math.abs(w.x - b.x) < 30 && Math.abs(w.y - 15 - b.y) < 30) {
-                hitWordIndices.add(wi);
-                hitBulletIndices.add(bi);
-                // 判斷是否打中目標字
+            if (Math.abs(w.x - b.x) < 32 && Math.abs(w.y - 15 - b.y) < 32) {
+                hitWords.add(wi);
+                hitBullets.add(bi);
                 if (w.text === game.data.content[game.charIndex]) {
-                    game.score += 10;
+                    const gain = 10 + game.levelIdx * 5;
+                    game.score += gain;
                     game.charIndex++;
-                    if (game.charIndex >= game.data.content.length) {
-                        pendingFinish = true;
+                    game.hitCount++;
+                    spawnParticles(w.x, w.y, true);
+                    game.scorePopups.push({ x: w.x, y: w.y - 10, text: '+' + gain, color: '#ffe066', life: 1.0 });
+                    const nextLvIdx = LEVEL_THRESHOLDS.findLastIndex(th => game.hitCount >= th);
+                    if (nextLvIdx > game.levelIdx) {
+                        game.levelIdx = nextLvIdx;
+                        showLevelFlash(LEVELS[game.levelIdx].label);
                     }
+                    if (game.charIndex >= game.data.content.length) pendingFinish = true;
                 } else {
-                    game.score = Math.max(0, game.score - 5);
+                    const penalty = 10 + game.levelIdx * 3;
+                    game.score = Math.max(0, game.score - penalty);
+                    game.fireCooldown = 600;
+                    game.screenFlash  = 0.45;
+                    spawnParticles(w.x, w.y, false);
+                    game.scorePopups.push({ x: w.x, y: w.y - 10, text: '-' + penalty, color: '#ff4444', life: 1.0 });
                 }
-                refresh();
-                break; // 一個字只能被一顆子彈打中
+                refreshHUD();
+                break;
             }
         }
     }
 
-    // 步驟 C：依結果過濾陣列（碰撞偵測已完成，安全過濾）
-    game.words   = game.words.filter((_, i) => !hitWordIndices.has(i) && game.words[i].y < 850);
-    game.bullets = game.bullets.filter((b, i) => !hitBulletIndices.has(i) && b.y > -10);
+    /* 6. 過濾陣列，文字落底扣血 */
+    const survivingWords = [];
+    for (let wi = 0; wi < game.words.length; wi++) {
+        const w = game.words[wi];
+        if (hitWords.has(wi)) continue;
+        if (w.y > canvas.height + 20) {
+            if (w.text === game.data.content[game.charIndex] ||
+                game.data.content.indexOf(w.text) >= game.charIndex) {
+                game.lives--;
+                refreshHUD();
+                if (game.lives <= 0) pendingGameOver = true;
+            }
+            continue;
+        }
+        survivingWords.push(w);
+    }
+    game.words   = survivingWords;
+    game.bullets = game.bullets.filter((b, i) => !hitBullets.has(i) && b.y > -10);
 
-    // 步驟 D：移動剩餘文字
+    /* 7. 移動文字 */
     for (const w of game.words) { w.y += w.vy; }
 
-    // 4. 繪製文字
-    ctx.font = "bold 36px 'STKaiti', serif";
-    ctx.textAlign = "center";
-    for (const w of game.words) {
-        ctx.fillStyle = (w.text === game.data.content[game.charIndex]) ? '#e07a5f' : '#3d405b';
-        ctx.fillText(w.text, w.x, w.y);
-    }
+    /* 8-12. 繪製各層 */
+    drawParticles();
+    drawInkTrails();
+    drawScorePopups();
+    drawWords();
+    drawBullets();
+    drawPlayer();
 
-    // 5. 繪製子彈
-    ctx.fillStyle = '#e07a5f';
-    for (const b of game.bullets) {
-        ctx.beginPath();
-        ctx.arc(b.x, b.y, 5, 0, Math.PI * 2);
-        ctx.fill();
-    }
-
-    // 6. 繪製玩家飛船
-    ctx.fillStyle = '#3d405b';
-    ctx.beginPath();
-    ctx.moveTo(game.playerX + 20, 720);
-    ctx.lineTo(game.playerX, 760);
-    ctx.lineTo(game.playerX + 40, 760);
-    ctx.fill();
-
-    // ★ 確保所有繪製完成後，才結束遊戲
-    if (pendingFinish) {
-        finish();
-        return;
-    }
+    /* 13. 收尾 */
+    if (pendingGameOver) { finish(false); return; }
+    if (pendingFinish)   { finish(true);  return; }
 
     requestAnimationFrame(loop);
 }
 
-function finish() {
+/* ───── 繪製函式群 ───── */
+
+function drawBackground() {
+    const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    grad.addColorStop(0,   '#0d0b1e');
+    grad.addColorStop(0.5, '#111428');
+    grad.addColorStop(1,   '#1a0f2e');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    for (const s of game.stars) {
+        s.twinkle += 0.02;
+        const a = s.alpha * (0.6 + 0.4 * Math.sin(s.twinkle));
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(220,220,255,${a})`;
+        ctx.fill();
+    }
+
+    const glow = ctx.createLinearGradient(0, 700, 0, canvas.height);
+    glow.addColorStop(0, 'rgba(201,168,76,0)');
+    glow.addColorStop(1, 'rgba(201,168,76,0.08)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 700, canvas.width, canvas.height - 700);
+}
+
+function drawWords() {
+    const target = game.data.content[game.charIndex];
+    ctx.textAlign = "center";
+    for (const w of game.words) {
+        const isTarget = w.text === target;
+        ctx.save();
+        if (isTarget) {
+            ctx.shadowColor = '#ff9966';
+            ctx.shadowBlur  = 8 + 4 * Math.sin(game.glowPhase);
+            ctx.font        = "bold 38px 'STKaiti', serif";
+            ctx.fillStyle   = '#ffcc88';
+        } else {
+            ctx.shadowBlur  = 0;
+            ctx.font        = "bold 34px 'STKaiti', serif";
+            ctx.fillStyle   = '#8899bb';
+        }
+        ctx.fillText(w.text, w.x, w.y);
+        ctx.restore();
+    }
+}
+
+function drawBullets() {
+    for (const b of game.bullets) {
+        const grad = ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, 10);
+        grad.addColorStop(0, 'rgba(255,220,100,0.9)');
+        grad.addColorStop(1, 'rgba(255,120,50,0)');
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, 10, 0, Math.PI * 2);
+        ctx.fillStyle = grad;
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, 4, 0, Math.PI * 2);
+        ctx.fillStyle = '#fffbe0';
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255,180,60,0.4)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(b.x, b.y + 5);
+        ctx.lineTo(b.x, b.y + 20);
+        ctx.stroke();
+    }
+}
+
+function drawPlayer() {
+    const px = game.playerX;
+    const py = 740;
+    ctx.save();
+    const baseGlow = ctx.createRadialGradient(px + 21, py + 20, 2, px + 21, py + 20, 35);
+    baseGlow.addColorStop(0, 'rgba(201,168,76,0.25)');
+    baseGlow.addColorStop(1, 'rgba(201,168,76,0)');
+    ctx.fillStyle = baseGlow;
+    ctx.beginPath();
+    ctx.ellipse(px + 21, py + 22, 35, 14, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowColor = '#c9a84c';
+    ctx.shadowBlur  = 12;
+    ctx.beginPath();
+    ctx.moveTo(px + 21, py - 18);
+    ctx.bezierCurveTo(px + 14, py + 5, px + 8, py + 15, px + 5, py + 28);
+    ctx.lineTo(px + 37, py + 28);
+    ctx.bezierCurveTo(px + 34, py + 15, px + 28, py + 5, px + 21, py - 18);
+    ctx.fillStyle = '#ddc070';
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(px + 21, py - 18);
+    ctx.lineTo(px + 16, py - 6);
+    ctx.lineTo(px + 26, py - 6);
+    ctx.closePath();
+    ctx.fillStyle   = '#ffffff';
+    ctx.shadowColor = '#ffffff';
+    ctx.shadowBlur  = 8;
+    ctx.fill();
+    ctx.fillStyle  = '#9966aa';
+    ctx.shadowBlur = 0;
+    ctx.fillRect(px + 7, py + 18, 28, 5);
+    ctx.fillRect(px + 9, py + 25, 24, 3);
+    ctx.restore();
+}
+
+function drawParticles() {
+    for (const p of game.particles) {
+        ctx.save();
+        ctx.globalAlpha = p.life;
+        if (p.ink) {
+            ctx.strokeStyle = p.color;
+            ctx.lineWidth   = p.r * 0.6;
+            ctx.beginPath();
+            ctx.moveTo(p.x, p.y);
+            ctx.lineTo(p.x - p.vx * 3, p.y - p.vy * 3);
+            ctx.stroke();
+        } else {
+            ctx.fillStyle   = p.color;
+            ctx.shadowColor = p.color;
+            ctx.shadowBlur  = 6;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.restore();
+    }
+    game.particles = game.particles.filter(p => {
+        p.x    += p.vx;
+        p.y    += p.vy;
+        p.vy   += 0.12;
+        p.life -= p.decay;
+        return p.life > 0;
+    });
+}
+
+function drawInkTrails() {
+    for (const t of game.inkTrails) {
+        ctx.save();
+        ctx.globalAlpha = t.alpha * 0.4;
+        ctx.font        = `bold ${t.size}px 'STKaiti', serif`;
+        ctx.textAlign   = "center";
+        ctx.fillStyle   = '#c9a84c';
+        ctx.fillText("✦", t.x, t.y);
+        ctx.restore();
+        t.alpha -= 0.04;
+        t.size  += 1.5;
+    }
+    game.inkTrails = game.inkTrails.filter(t => t.alpha > 0);
+}
+
+function drawScorePopups() {
+    ctx.textAlign = "center";
+    for (const p of game.scorePopups) {
+        ctx.save();
+        ctx.globalAlpha = p.life;
+        ctx.font        = `bold 26px 'STKaiti', serif`;
+        ctx.fillStyle   = p.color;
+        ctx.shadowColor = p.color;
+        ctx.shadowBlur  = 10;
+        ctx.fillText(p.text, p.x, p.y);
+        ctx.restore();
+        p.y    -= 1.2;
+        p.life -= 0.025;
+    }
+    game.scorePopups = game.scorePopups.filter(p => p.life > 0);
+}
+
+/* ───── 生成文字 ───── */
+function spawnWord(lv) {
+    const isTarget = Math.random() > 0.4 && game.charIndex < game.data.content.length;
+    game.words.push({
+        x:    Math.random() * 520 + 50,
+        y:    -50,
+        text: isTarget
+            ? game.data.content[game.charIndex]
+            : commonWords[Math.floor(Math.random() * commonWords.length)],
+        vy:   lv.baseVy + Math.random() * lv.vyRange
+    });
+}
+
+/* ───── 結束 ───── */
+function finish(win) {
     game.active = false;
-    document.getElementById('msg-text').innerText = "詩篇完成！總分：" + game.score;
+    document.getElementById('hud').style.display = 'none';
+
+    document.getElementById('msg-title').innerText = win ? "🎉 詩篇完成！" : "💀 道途已盡";
+    document.getElementById('msg-text').innerText  =
+        (win ? "以詩為劍，所向披靡！\n" : "命盡於此，再試一回！\n") +
+        "最終得分：" + game.score + "　境界：" + LEVELS[game.levelIdx].label;
+
+    const p = game.data;
+    document.getElementById('review-author').innerText = "── " + p.author + "　《" + p.title + "》──";
+
+    const linesHTML = p.lines.map(line => {
+        let html = '';
+        for (const ch of line) {
+            if ('，。！、'.includes(ch)) {
+                html += `<span style="color:#556677">${ch}</span>`;
+            } else if (win || p.content.indexOf(ch) < game.charIndex) {
+                html += `<span class="char-highlight">${ch}</span>`;
+            } else {
+                html += `<span style="color:#445566">${ch}</span>`;
+            }
+        }
+        return html;
+    }).join('<br>');
+    document.getElementById('review-lines').innerHTML = linesHTML;
+    document.getElementById('review-note').innerText  = "📖 " + p.note;
     document.getElementById('msg-popup').style.display = 'block';
 }
 
 function closeMsg() {
     document.getElementById('msg-popup').style.display = 'none';
-    document.getElementById('overlay').style.display = 'flex';
+    document.getElementById('overlay').style.display   = 'flex';
+}
+
+/* ───── findLastIndex polyfill ───── */
+if (!Array.prototype.findLastIndex) {
+    Array.prototype.findLastIndex = function(fn) {
+        for (let i = this.length - 1; i >= 0; i--) {
+            if (fn(this[i], i, this)) return i;
+        }
+        return -1;
+    };
 }
 </script>
 </body>
